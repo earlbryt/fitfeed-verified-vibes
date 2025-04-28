@@ -21,9 +21,9 @@ export type Workout = {
   updated_at: string;
   hidden: boolean;
   profile?: Profile;
-  likes_count?: number;
-  comments_count?: number;
-  flags_count?: number;
+  likes_count: number;
+  comments_count: number;
+  flags_count: number;
   user_has_liked?: boolean;
   user_has_flagged?: boolean;
 };
