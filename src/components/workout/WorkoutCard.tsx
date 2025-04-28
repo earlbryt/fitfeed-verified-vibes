@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Card, 
   CardContent,
@@ -9,31 +9,109 @@ import {
 import { Avatar } from '@/components/ui/avatar';
 import { Heart, MessageCircle, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Workout } from '@/types/workout';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { Workout } from '@/types/supabase';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import CommentDialog from './CommentDialog';
 
 interface WorkoutCardProps {
   workout: Workout;
+  onWorkoutUpdate?: () => void;
 }
 
-const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout }) => {
-  const handleLike = () => {
-    toast.success('Workout liked!');
-  };
+const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onWorkoutUpdate }) => {
+  const { user } = useAuth();
+  const [isLiked, setIsLiked] = useState(workout.user_has_liked || false);
+  const [likeCount, setLikeCount] = useState(workout.likes_count || 0);
+  const [commentCount, setCommentCount] = useState(workout.comments_count || 0);
+  const [isFlagged, setIsFlagged] = useState(workout.user_has_flagged || false);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
 
-  const handleComment = () => {
-    toast.success('Comment added!');
-  };
+  const handleLike = async () => {
+    if (!user) {
+      toast.error('Please sign in to like workouts');
+      return;
+    }
 
-  const handleFlag = () => {
-    toast('Workout flagged for review', {
-      description: 'An admin will review this workout soon',
-      action: {
-        label: 'Undo',
-        onClick: () => toast.success('Flag removed')
+    try {
+      if (isLiked) {
+        // Unlike the workout
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .match({ user_id: user.id, workout_id: workout.id });
+
+        if (error) throw error;
+        
+        setIsLiked(false);
+        setLikeCount(prev => Math.max(0, prev - 1));
+        toast.success('Workout unliked');
+      } else {
+        // Like the workout
+        const { error } = await supabase
+          .from('likes')
+          .insert({ user_id: user.id, workout_id: workout.id });
+
+        if (error) throw error;
+        
+        setIsLiked(true);
+        setLikeCount(prev => prev + 1);
+        toast.success('Workout liked!');
       }
-    });
+
+      if (onWorkoutUpdate) onWorkoutUpdate();
+    } catch (error: any) {
+      toast.error(error.message || 'Error updating like');
+    }
+  };
+
+  const handleFlag = async () => {
+    if (!user) {
+      toast.error('Please sign in to flag workouts');
+      return;
+    }
+
+    try {
+      if (isFlagged) {
+        // Remove flag
+        const { error } = await supabase
+          .from('flags')
+          .delete()
+          .match({ user_id: user.id, workout_id: workout.id });
+
+        if (error) throw error;
+        
+        setIsFlagged(false);
+        toast.success('Flag removed');
+      } else {
+        // Flag the workout
+        const { error } = await supabase
+          .from('flags')
+          .insert({ user_id: user.id, workout_id: workout.id });
+
+        if (error) throw error;
+        
+        setIsFlagged(true);
+        toast('Workout flagged for review', {
+          description: 'An admin will review this workout soon',
+          action: {
+            label: 'Undo',
+            onClick: () => handleFlag()
+          }
+        });
+      }
+
+      if (onWorkoutUpdate) onWorkoutUpdate();
+    } catch (error: any) {
+      toast.error(error.message || 'Error updating flag');
+    }
+  };
+
+  const handleCommentAdded = () => {
+    setCommentCount(prev => prev + 1);
+    if (onWorkoutUpdate) onWorkoutUpdate();
   };
 
   return (
@@ -41,11 +119,16 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout }) => {
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex items-center space-x-2">
           <Avatar className="h-8 w-8 border border-fit-primary">
-            <img src={workout.user.avatar} alt={workout.user.name} />
+            <img 
+              src={workout.profile?.avatar_url || 'https://api.dicebear.com/6.x/avataaars/svg'} 
+              alt={workout.profile?.username || 'User'} 
+            />
           </Avatar>
           <div>
-            <p className="font-medium text-sm">{workout.user.name}</p>
-            <p className="text-xs text-muted-foreground">{workout.timestamp}</p>
+            <p className="font-medium text-sm">{workout.profile?.full_name || workout.profile?.username || 'User'}</p>
+            <p className="text-xs text-muted-foreground">
+              {new Date(workout.created_at).toLocaleString()}
+            </p>
           </div>
           {workout.verified && (
             <div className="ml-auto">
@@ -73,21 +156,21 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout }) => {
         <div className="flex justify-between items-center mb-2">
           <div className="flex space-x-4">
             <Button variant="ghost" size="icon" onClick={handleLike}>
-              <Heart size={20} className="text-gray-600 hover:text-red-500" />
+              <Heart size={20} className={`${isLiked ? 'text-red-500 fill-red-500' : 'text-gray-600'} hover:text-red-500`} />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleComment}>
+            <Button variant="ghost" size="icon" onClick={() => setCommentDialogOpen(true)}>
               <MessageCircle size={20} className="text-gray-600" />
             </Button>
           </div>
           <Button variant="ghost" size="icon" onClick={handleFlag}>
-            <Flag size={20} className="text-gray-600" />
+            <Flag size={20} className={`${isFlagged ? 'text-amber-500' : 'text-gray-600'}`} />
           </Button>
         </div>
         <div>
-          <p className="text-sm font-semibold">{workout.likes} likes</p>
+          <p className="text-sm font-semibold">{likeCount} likes</p>
           <div className="mt-1">
             <p className="text-sm">
-              <span className="font-semibold">{workout.user.name}</span>{' '}
+              <span className="font-semibold">{workout.profile?.username || 'User'}</span>{' '}
               <span>{workout.caption}</span>
             </p>
           </div>
@@ -106,10 +189,22 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout }) => {
       </CardContent>
       
       <CardFooter className="px-4 py-2">
-        <p className="text-xs text-muted-foreground">
-          View all {workout.comments} comments
-        </p>
+        <button 
+          className="text-xs text-muted-foreground"
+          onClick={() => setCommentDialogOpen(true)}
+        >
+          {commentCount > 0 
+            ? `View all ${commentCount} comments` 
+            : 'Be the first to comment'}
+        </button>
       </CardFooter>
+
+      <CommentDialog 
+        workoutId={workout.id}
+        open={commentDialogOpen}
+        onOpenChange={setCommentDialogOpen}
+        onCommentAdded={handleCommentAdded}
+      />
     </Card>
   );
 };

@@ -23,9 +23,11 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const formSchema = z.object({
   type: z.string().min(1, { message: 'Please select a workout type' }),
@@ -36,7 +38,10 @@ const formSchema = z.object({
 });
 
 const WorkoutForm = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,14 +65,66 @@ const WorkoutForm = () => {
     }
   };
   
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
-    toast.success('Workout logged successfully!', {
-      description: values.image ? 'Your workout has been verified!' : 'Add a photo next time to verify your workout.',
-    });
-    // Reset form
-    form.reset();
-    setImagePreview(null);
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast.error('You must be logged in to post a workout');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      
+      // First, upload the image if provided
+      let imageUrl = null;
+      if (values.image instanceof File) {
+        const fileExt = values.image.name.split('.').pop();
+        const filePath = `workouts/${user.id}/${Math.random().toString(36).substring(2)}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('workout-images')
+          .upload(filePath, values.image);
+          
+        if (uploadError) throw uploadError;
+        
+        // Get the public URL
+        const { data: urlData } = await supabase.storage
+          .from('workout-images')
+          .getPublicUrl(filePath);
+          
+        imageUrl = urlData.publicUrl;
+      }
+      
+      // Insert the workout
+      const { data, error } = await supabase.from('workouts').insert({
+        user_id: user.id,
+        type: values.type,
+        duration: parseInt(values.duration),
+        intensity: values.intensity,
+        caption: values.caption || null,
+        image: imageUrl,
+        verified: !!imageUrl, // Mark as verified if image provided
+      }).select();
+      
+      if (error) throw error;
+      
+      toast.success('Workout logged successfully!', {
+        description: values.image ? 'Your workout has been verified!' : 'Add a photo next time to verify your workout.',
+      });
+      
+      // Reset form
+      form.reset();
+      setImagePreview(null);
+      
+      // Navigate to home
+      navigate('/');
+    } catch (error: any) {
+      toast.error('Failed to log workout', {
+        description: error.message,
+      });
+      console.error('Error logging workout:', error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -226,8 +283,12 @@ const WorkoutForm = () => {
             )}
           />
           
-          <Button type="submit" className="w-full bg-gradient-to-r from-fit-primary to-fit-secondary hover:opacity-90">
-            Log Workout
+          <Button 
+            type="submit" 
+            className="w-full bg-gradient-to-r from-fit-primary to-fit-secondary hover:opacity-90"
+            disabled={uploading}
+          >
+            {uploading ? 'Uploading...' : 'Log Workout'}
           </Button>
         </form>
       </Form>
