@@ -270,7 +270,6 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onWorkoutUpdate }) =
 
   const handleCommentAdded = () => {
     setCommentCount(prev => prev + 1);
-    if (onWorkoutUpdate) onWorkoutUpdate();
   };
 
   return (
@@ -338,9 +337,12 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onWorkoutUpdate }) =
                 </Button>
                 <span className="text-sm font-medium ml-1">{likeCount}</span>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setCommentDialogOpen(true)}>
-                <MessageCircle size={20} className="text-gray-600" />
-              </Button>
+              <div className="flex items-center">
+                <Button variant="ghost" size="icon" onClick={() => setCommentDialogOpen(true)}>
+                  <MessageCircle size={20} className="text-gray-600" />
+                </Button>
+                <span className="text-sm font-medium ml-1">{commentCount}</span>
+              </div>
             </div>
             <Button variant="ghost" size="icon" onClick={handleFlag}>
               <Flag size={20} className={`${isFlagged ? 'text-amber-500' : 'text-gray-600'}`} />

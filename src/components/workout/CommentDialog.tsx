@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -68,20 +67,55 @@ const CommentDialog: React.FC<CommentDialogProps> = ({
     try {
       setSubmitting(true);
       
-      const { error } = await supabase
+      // Get the comment content before clearing the input
+      const commentContent = newComment.trim();
+      
+      // Create a temporary comment object for optimistic UI update
+      const tempComment: Comment = {
+        id: `temp-${Date.now()}`, // Temporary ID that will be replaced after server response
+        workout_id: workoutId,
+        user_id: user.id,
+        content: commentContent,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        profile: profile, // Use the current user's profile
+      };
+      
+      // Optimistically update UI first
+      setComments(prevComments => [tempComment, ...prevComments]);
+      setNewComment(''); // Clear input field immediately
+      
+      // Increment comment count in parent component without triggering refresh
+      // Use a function that updates the state locally
+      // This is a synchronous call that doesn't cause a page refresh
+      onCommentAdded();
+      
+      // Then perform the actual database operation
+      const { data, error } = await supabase
         .from('comments')
         .insert({
           workout_id: workoutId,
           user_id: user.id,
-          content: newComment.trim(),
-        });
+          content: commentContent,
+        })
+        .select('*, profile:profiles(*)');
 
-      if (error) throw error;
+      if (error) {
+        // If error, remove the temporary comment
+        setComments(prevComments => prevComments.filter(comment => comment.id !== tempComment.id));
+        throw error;
+      }
       
-      setNewComment('');
-      toast.success('Comment added');
-      onCommentAdded();
-      fetchComments();
+      // Replace the temporary comment with the real one from the server
+      if (data && data.length > 0) {
+        setComments(prevComments => 
+          prevComments.map(comment => 
+            comment.id === tempComment.id ? (data[0] as Comment) : comment
+          )
+        );
+      }
+      
+      toast.success('Comment added', { duration: 1500 });
     } catch (error: any) {
       toast.error(error.message || 'Failed to add comment');
     } finally {
@@ -91,7 +125,7 @@ const CommentDialog: React.FC<CommentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[90%] max-w-md mx-auto rounded-lg">
         <DialogHeader>
           <DialogTitle>Comments</DialogTitle>
         </DialogHeader>

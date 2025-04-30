@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Home, Search, PlusSquare, User } from 'lucide-react';
+import { Home, PlusCircle, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const BottomNavigation = () => {
@@ -8,27 +7,25 @@ const BottomNavigation = () => {
   const path = location.pathname;
 
   return (
-    <nav className="bottom-nav">
-      <Link to="/" className={`bottom-nav-item ${path === '/' ? 'active' : ''}`}>
-        <Home size={24} />
-        <span className="text-xs mt-1">Home</span>
-      </Link>
-      
-      <Link to="/search" className={`bottom-nav-item ${path === '/search' ? 'active' : ''}`}>
-        <Search size={24} />
-        <span className="text-xs mt-1">Search</span>
-      </Link>
-      
-      <Link to="/add-workout" className={`bottom-nav-item ${path === '/add-workout' ? 'active' : ''}`}>
-        <PlusSquare size={24} />
-        <span className="text-xs mt-1">Add</span>
-      </Link>
-      
-      <Link to="/profile" className={`bottom-nav-item ${path === '/profile' ? 'active' : ''}`}>
-        <User size={24} />
-        <span className="text-xs mt-1">Profile</span>
-      </Link>
-    </nav>
+    <div className="bottom-nav-container">
+      <nav className="bottom-nav">
+        <Link to="/" className={`bottom-nav-item ${path === '/' ? 'active' : ''}`}>
+          <Home size={24} />
+          <span className="text-xs mt-1">Home</span>
+        </Link>
+        
+        <div className="bottom-nav-add-wrapper">
+          <Link to="/add-workout" className={`bottom-nav-add ${path === '/add-workout' ? 'active' : ''}`}>
+            <PlusCircle size={32} />
+          </Link>
+        </div>
+        
+        <Link to="/profile" className={`bottom-nav-item ${path === '/profile' ? 'active' : ''}`}>
+          <User size={24} />
+          <span className="text-xs mt-1">Profile</span>
+        </Link>
+      </nav>
+    </div>
   );
 };
 
