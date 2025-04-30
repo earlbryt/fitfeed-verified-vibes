@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -36,32 +35,52 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onWorkoutUpdate }) =
     }
 
     try {
-      if (isLiked) {
+      // Optimistically update UI first for immediate feedback
+      const wasLiked = isLiked;
+      const newLikeCount = wasLiked ? Math.max(0, likeCount - 1) : likeCount + 1;
+      
+      // Update local state immediately for responsive UI
+      setIsLiked(!wasLiked);
+      setLikeCount(newLikeCount);
+      
+      // Then perform the actual database operation
+      if (wasLiked) {
         // Unlike the workout
         const { error } = await supabase
           .from('likes')
           .delete()
           .match({ user_id: user.id, workout_id: workout.id });
 
-        if (error) throw error;
+        if (error) {
+          // Revert UI changes if the operation failed
+          setIsLiked(wasLiked);
+          setLikeCount(likeCount);
+          throw error;
+        }
         
-        setIsLiked(false);
-        setLikeCount(prev => Math.max(0, prev - 1));
-        toast.success('Workout unliked');
+        // Only toast on success, after the API call completes
+        toast.success('Workout unliked', { duration: 1500 });
       } else {
         // Like the workout
         const { error } = await supabase
           .from('likes')
           .insert({ user_id: user.id, workout_id: workout.id });
 
-        if (error) throw error;
+        if (error) {
+          // Revert UI changes if the operation failed
+          setIsLiked(wasLiked);
+          setLikeCount(likeCount);
+          throw error;
+        }
         
-        setIsLiked(true);
-        setLikeCount(prev => prev + 1);
-        toast.success('Workout liked!');
+        // Only toast on success, after the API call completes
+        toast.success('Workout liked!', { duration: 1500 });
       }
 
-      if (onWorkoutUpdate) onWorkoutUpdate();
+      // Only call onWorkoutUpdate when we need to sync data with the parent
+      // For example, when changing views or on component unmount
+      // Remove this for immediate actions to avoid refreshing
+      // if (onWorkoutUpdate) onWorkoutUpdate();
     } catch (error: any) {
       toast.error(error.message || 'Error updating like');
     }
@@ -74,28 +93,42 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onWorkoutUpdate }) =
     }
 
     try {
-      if (isFlagged) {
+      // Optimistically update UI first
+      const wasFlagged = isFlagged;
+      
+      // Update local state immediately
+      setIsFlagged(!wasFlagged);
+      
+      // Then perform the actual database operation
+      if (wasFlagged) {
         // Remove flag
         const { error } = await supabase
           .from('flags')
           .delete()
           .match({ user_id: user.id, workout_id: workout.id });
 
-        if (error) throw error;
+        if (error) {
+          // Revert UI changes if operation failed
+          setIsFlagged(wasFlagged);
+          throw error;
+        }
         
-        setIsFlagged(false);
-        toast.success('Flag removed');
+        toast.success('Flag removed', { duration: 1500 });
       } else {
         // Flag the workout
         const { error } = await supabase
           .from('flags')
           .insert({ user_id: user.id, workout_id: workout.id });
 
-        if (error) throw error;
+        if (error) {
+          // Revert UI changes if operation failed
+          setIsFlagged(wasFlagged);
+          throw error;
+        }
         
-        setIsFlagged(true);
         toast('Workout flagged for review', {
           description: 'An admin will review this workout soon',
+          duration: 3000,
           action: {
             label: 'Undo',
             onClick: () => handleFlag()
@@ -103,7 +136,8 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onWorkoutUpdate }) =
         });
       }
 
-      if (onWorkoutUpdate) onWorkoutUpdate();
+      // Don't refresh the entire page
+      // if (onWorkoutUpdate) onWorkoutUpdate();
     } catch (error: any) {
       toast.error(error.message || 'Error updating flag');
     }

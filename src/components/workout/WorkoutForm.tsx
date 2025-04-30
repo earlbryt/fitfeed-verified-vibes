@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -77,35 +76,64 @@ const WorkoutForm = () => {
       // First, upload the image if provided
       let imageUrl = null;
       if (values.image instanceof File) {
+        // Make sure the file has a unique name
         const fileExt = values.image.name.split('.').pop();
-        const filePath = `workouts/${user.id}/${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `workouts/${user.id}/${fileName}`;
+        
+        console.log('Uploading to path:', filePath);
         
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('workout-images')
-          .upload(filePath, values.image);
+          .from('planetpitness')
+          .upload(filePath, values.image, {
+            cacheControl: '3600',
+            upsert: false
+          });
           
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw uploadError;
+        }
+        
+        console.log('Upload successful:', uploadData);
         
         // Get the public URL
         const { data: urlData } = await supabase.storage
-          .from('workout-images')
+          .from('planetpitness')
           .getPublicUrl(filePath);
           
         imageUrl = urlData.publicUrl;
+        console.log('Image URL:', imageUrl);
       }
       
-      // Insert the workout
-      const { data, error } = await supabase.from('workouts').insert({
+      console.log('Creating workout with data:', {
         user_id: user.id,
         type: values.type,
         duration: parseInt(values.duration),
         intensity: values.intensity,
         caption: values.caption || null,
         image: imageUrl,
-        verified: !!imageUrl, // Mark as verified if image provided
-      }).select();
+        verified: !!imageUrl
+      });
       
-      if (error) throw error;
+      // Insert the workout
+      const { data, error } = await supabase
+        .from('workouts')
+        .insert({
+          user_id: user.id,
+          type: values.type,
+          duration: parseInt(values.duration),
+          intensity: values.intensity,
+          caption: values.caption || null,
+          image: imageUrl,
+          verified: !!imageUrl, // Mark as verified if image provided
+        })
+        .select();
+      
+      if (error) {
+        console.error('Insert error:', error);
+        throw error;
+      }
       
       toast.success('Workout logged successfully!', {
         description: values.image ? 'Your workout has been verified!' : 'Add a photo next time to verify your workout.',
