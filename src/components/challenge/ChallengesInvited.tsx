@@ -60,7 +60,18 @@ const ChallengesInvited = () => {
           status: p.status,
           progress: p.progress,
         },
-        challenge: p.challenges as unknown as Challenge
+        challenge: {
+          ...p.challenges,
+          creator: p.challenges.profiles ? {
+            id: p.challenges.profiles.id,
+            username: p.challenges.profiles.username || '',
+            full_name: p.challenges.profiles.full_name || '',
+            avatar_url: p.challenges.profiles.avatar_url,
+            bio: null,
+            created_at: '',
+            updated_at: ''
+          } : undefined
+        } as Challenge
       })) || [];
     },
     enabled: !!user

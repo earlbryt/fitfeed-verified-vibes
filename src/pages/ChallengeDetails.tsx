@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -20,7 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Challenge, ChallengeParticipant } from '@/types/supabase';
+import { Challenge, ChallengeParticipant, ChallengeWorkout } from '@/types/supabase';
 
 const ChallengeDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,7 +49,7 @@ const ChallengeDetails = () => {
             user_id,
             status,
             progress,
-            profiles:user_id (
+            profile:user_id (
               id, 
               username,
               full_name,
@@ -68,14 +69,14 @@ const ChallengeDetails = () => {
           id,
           contribution_value,
           created_at,
-          workouts:workout_id (
+          workout:workout_id (
             id,
             type,
             duration,
             intensity,
             created_at,
             image,
-            profiles:user_id (
+            profile:user_id (
               id,
               username,
               avatar_url
@@ -87,27 +88,36 @@ const ChallengeDetails = () => {
         
       if (workoutsError) throw workoutsError;
       
-      return {
-        ...challenge,
-        workouts: workouts || [],
-        // Handle wrong types by explicitly asserting them
+      // Create a properly typed object with all challenge data including workouts
+      const typedChallenge: Challenge = {
+        ...challenge as Challenge,
+        workouts: workouts as unknown as ChallengeWorkout[],
         creator: challenge.creator ? {
           id: challenge.creator.id,
           username: challenge.creator.username || '',
-          avatar_url: challenge.creator.avatar_url
-        } : null,
+          avatar_url: challenge.creator.avatar_url,
+          full_name: null,
+          bio: null,
+          created_at: '',
+          updated_at: ''
+        } : undefined,
         participants: challenge.participants 
           ? challenge.participants.map(p => ({
               ...p,
-              profiles: p.profiles ? {
-                id: p.profiles.id,
-                username: p.profiles.username || '',
-                full_name: p.profiles.full_name || '',
-                avatar_url: p.profiles.avatar_url
-              } : null
+              profile: p.profile ? {
+                id: p.profile.id,
+                username: p.profile.username || '',
+                full_name: p.profile.full_name || '',
+                avatar_url: p.profile.avatar_url,
+                bio: null,
+                created_at: '',
+                updated_at: ''
+              } : undefined
             }))
           : []
-      } as Challenge;
+      };
+      
+      return typedChallenge;
     },
     enabled: !!id
   });
@@ -238,14 +248,14 @@ const ChallengeDetails = () => {
               
               <div className="flex items-center mt-3">
                 <Avatar className="h-10 w-10 mr-3">
-                  <AvatarImage src={(sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profiles?.avatar_url) || ''} />
+                  <AvatarImage src={(sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profile?.avatar_url) || ''} />
                   <AvatarFallback>
-                    {(sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profiles?.username?.charAt(0) || 'W').toUpperCase()}
+                    {(sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profile?.username?.charAt(0) || 'W').toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <div className="font-medium">
-                    {sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profiles?.username || 'User'}
+                    {sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profile?.username || 'User'}
                   </div>
                   <div className="text-sm text-gray-500">
                     Completed with {sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.progress || 0} {challengeData.goal_unit}
@@ -270,13 +280,13 @@ const ChallengeDetails = () => {
                     <div className="flex justify-between items-center">
                       <div className="flex items-center">
                         <Avatar className="h-6 w-6 mr-2">
-                          <AvatarImage src={participant.profiles?.avatar_url || ''} />
+                          <AvatarImage src={participant.profile?.avatar_url || ''} />
                           <AvatarFallback>
-                            {(participant.profiles?.username?.charAt(0) || 'U').toUpperCase()}
+                            {(participant.profile?.username?.charAt(0) || 'U').toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <span className="text-sm font-medium">
-                          {participant.profiles?.username || 'User'}
+                          {participant.profile?.username || 'User'}
                         </span>
                       </div>
                       <span className="text-sm">
@@ -361,21 +371,21 @@ const ChallengeDetails = () => {
           
           {challengeData.workouts && challengeData.workouts.length > 0 ? (
             <div className="space-y-3">
-              {challengeData.workouts.slice(0, 5).map((contri: any) => (
+              {challengeData.workouts.slice(0, 5).map((contri) => (
                 <div key={contri.id} className="border rounded-md p-3 flex justify-between">
                   <div className="flex items-center">
                     <Avatar className="w-6 h-6 mr-2">
-                      <AvatarImage src={contri.workouts?.profiles?.avatar_url || ''} />
+                      <AvatarImage src={contri.workout?.profile?.avatar_url || ''} />
                       <AvatarFallback className="text-xs">
-                        {contri.workouts?.profiles?.username?.substring(0, 2).toUpperCase() || 'U'}
+                        {contri.workout?.profile?.username?.substring(0, 2).toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <div className="text-sm font-medium">
-                        {contri.workouts?.profiles?.username || 'User'}
+                        {contri.workout?.profile?.username || 'User'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {contri.workouts?.type} workout, {formatDate(contri.created_at)}
+                        {contri.workout?.type} workout, {formatDate(contri.created_at)}
                       </div>
                     </div>
                   </div>

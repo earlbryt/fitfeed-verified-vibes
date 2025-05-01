@@ -182,14 +182,14 @@ const WorkoutForm = () => {
           // Calculate contribution value based on the workout type and challenge goal unit
           let contributionValue = 0;
           
-          if (challengeData.challenges.goal_unit === 'minutes') {
+          if (challengeData.challenges?.goal_unit === 'minutes') {
             contributionValue = parseInt(values.duration);
-          } else if (challengeData.challenges.goal_unit === 'hours') {
+          } else if (challengeData.challenges?.goal_unit === 'hours') {
             contributionValue = parseInt(values.duration) / 60;
-          } else if (challengeData.challenges.goal_unit === 'workouts') {
+          } else if (challengeData.challenges?.goal_unit === 'workouts') {
             contributionValue = 1;
-          } else if ((challengeData.challenges.goal_unit === 'miles' || 
-                     challengeData.challenges.goal_unit === 'kilometers') && 
+          } else if ((challengeData.challenges?.goal_unit === 'miles' || 
+                     challengeData.challenges?.goal_unit === 'kilometers') && 
                      values.type === 'running') {
             // Estimate based on pace (rough estimate: 10min/mile for medium intensity)
             const minutesPerUnit = values.intensity === 'high' ? 8 : 
@@ -197,7 +197,7 @@ const WorkoutForm = () => {
             contributionValue = parseInt(values.duration) / minutesPerUnit;
             
             // Convert to kilometers if needed
-            if (challengeData.challenges.goal_unit === 'kilometers' && contributionValue > 0) {
+            if (challengeData.challenges?.goal_unit === 'kilometers' && contributionValue > 0) {
               contributionValue = contributionValue * 1.60934;
             }
           }
