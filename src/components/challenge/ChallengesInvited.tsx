@@ -37,6 +37,9 @@ const ChallengesInvited = () => {
             end_date,
             challenge_type,
             status,
+            winner_id,
+            created_at,
+            updated_at,
             profiles:creator_id (
               id,
               username,
@@ -57,7 +60,7 @@ const ChallengesInvited = () => {
           status: p.status,
           progress: p.progress,
         },
-        challenge: p.challenges
+        challenge: p.challenges as unknown as Challenge
       })) || [];
     },
     enabled: !!user
@@ -122,7 +125,7 @@ const ChallengesInvited = () => {
     <div className="space-y-4">
       {invitations.map(({ challenge, participant }) => (
         <div key={participant.id} className="border rounded-lg overflow-hidden">
-          <ChallengeCard challenge={challenge as Challenge} userStatus="invited" />
+          <ChallengeCard challenge={challenge} userStatus="invited" />
           <div className="flex border-t">
             <Button
               variant="ghost"

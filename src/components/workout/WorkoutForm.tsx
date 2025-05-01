@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,13 +39,15 @@ const formSchema = z.object({
   challenge_ids: z.array(z.string()).optional(),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
 const WorkoutForm = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       type: '',
@@ -96,7 +97,7 @@ const WorkoutForm = () => {
     }
   };
   
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: FormValues) => {
     if (!user) {
       toast.error('You must be logged in to post a workout');
       return;
