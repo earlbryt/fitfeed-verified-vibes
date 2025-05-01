@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,6 +28,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const formSchema = z.object({
   type: z.string().min(1, { message: 'Please select a workout type' }),
@@ -34,6 +37,7 @@ const formSchema = z.object({
   intensity: z.string().min(1, { message: 'Please select an intensity' }),
   caption: z.string().optional(),
   image: z.any().optional(),
+  challenge_ids: z.array(z.string()).optional(),
 });
 
 const WorkoutForm = () => {
@@ -49,7 +53,35 @@ const WorkoutForm = () => {
       duration: '30',
       intensity: 'medium',
       caption: '',
+      challenge_ids: [],
     },
+  });
+  
+  // Fetch active challenges the user is participating in
+  const { data: userChallenges } = useQuery({
+    queryKey: ['active-challenges-for-workout'],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('challenge_participants')
+        .select(`
+          challenge_id,
+          challenges:challenge_id (
+            id,
+            title,
+            goal_unit,
+            status
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'accepted')
+        .eq('challenges.status', 'active');
+        
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user
   });
   
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +149,7 @@ const WorkoutForm = () => {
       });
       
       // Insert the workout
-      const { data, error } = await supabase
+      const { data: workout, error } = await supabase
         .from('workouts')
         .insert({
           user_id: user.id,
@@ -128,11 +160,77 @@ const WorkoutForm = () => {
           image: imageUrl,
           verified: !!imageUrl, // Mark as verified if image provided
         })
-        .select();
+        .select()
+        .single();
       
       if (error) {
         console.error('Insert error:', error);
         throw error;
+      }
+      
+      // If the user selected challenges, link the workout to those challenges
+      if (values.challenge_ids && values.challenge_ids.length > 0) {
+        const challengeWorkouts = [];
+        
+        // For each selected challenge
+        for (const challengeId of values.challenge_ids) {
+          // Find the challenge to get its goal unit
+          const challengeData = userChallenges?.find(c => c.challenge_id === challengeId);
+          if (!challengeData) continue;
+          
+          // Calculate contribution value based on the workout type and challenge goal unit
+          let contributionValue = 0;
+          
+          if (challengeData.challenges.goal_unit === 'minutes') {
+            contributionValue = parseInt(values.duration);
+          } else if (challengeData.challenges.goal_unit === 'hours') {
+            contributionValue = parseInt(values.duration) / 60;
+          } else if (challengeData.challenges.goal_unit === 'workouts') {
+            contributionValue = 1;
+          } else if ((challengeData.challenges.goal_unit === 'miles' || 
+                     challengeData.challenges.goal_unit === 'kilometers') && 
+                     values.type === 'running') {
+            // Estimate based on pace (rough estimate: 10min/mile for medium intensity)
+            const minutesPerUnit = values.intensity === 'high' ? 8 : 
+                                  values.intensity === 'medium' ? 10 : 12;
+            contributionValue = parseInt(values.duration) / minutesPerUnit;
+            
+            // Convert to kilometers if needed
+            if (challengeData.challenges.goal_unit === 'kilometers' && contributionValue > 0) {
+              contributionValue = contributionValue * 1.60934;
+            }
+          }
+          
+          // Only add if there's a contribution
+          if (contributionValue > 0) {
+            challengeWorkouts.push({
+              challenge_id: challengeId,
+              workout_id: workout.id,
+              user_id: user.id,
+              contribution_value: parseFloat(contributionValue.toFixed(2))
+            });
+          }
+        }
+        
+        // Insert challenge workouts if any
+        if (challengeWorkouts.length > 0) {
+          const { error: challengeWorkoutError } = await supabase
+            .from('challenge_workouts')
+            .insert(challengeWorkouts);
+            
+          if (challengeWorkoutError) {
+            console.error('Challenge workout error:', challengeWorkoutError);
+            // Don't throw here, we still want to show success for the workout
+          } else {
+            // Update the progress for each challenge participant
+            for (const challengeWorkout of challengeWorkouts) {
+              await supabase.rpc('update_challenge_progress', {
+                p_challenge_id: challengeWorkout.challenge_id,
+                p_user_id: user.id
+              });
+            }
+          }
+        }
       }
       
       toast.success('Workout logged successfully!', {
@@ -252,6 +350,46 @@ const WorkoutForm = () => {
               </FormItem>
             )}
           />
+          
+          {/* Challenge selection */}
+          {userChallenges && userChallenges.length > 0 && (
+            <FormField
+              control={form.control}
+              name="challenge_ids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contribute to Challenges</FormLabel>
+                  <FormDescription>
+                    Select challenges to contribute this workout towards
+                  </FormDescription>
+                  <div className="space-y-2 border rounded-md p-3">
+                    {userChallenges.map((challenge) => (
+                      <div key={challenge.challenge_id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`challenge-${challenge.challenge_id}`}
+                          checked={field.value?.includes(challenge.challenge_id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              field.onChange([...(field.value || []), challenge.challenge_id]);
+                            } else {
+                              field.onChange(field.value?.filter(id => id !== challenge.challenge_id));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`challenge-${challenge.challenge_id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {challenge.challenges.title}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
           
           <FormField
             control={form.control}
