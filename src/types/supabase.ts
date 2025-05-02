@@ -1,3 +1,4 @@
+
 export type Profile = {
   id: string;
   username: string | null;
@@ -51,4 +52,45 @@ export type Flag = {
   workout_id: string;
   reason: string | null;
   created_at: string;
+};
+
+export type Challenge = {
+  id: string;
+  title: string;
+  description: string | null;
+  challenge_type: string;
+  goal_value: number;
+  goal_unit: string;
+  start_date: string;
+  end_date: string;
+  duration_days: number;
+  creator_id: string;
+  status: string;
+  winner_id: string | null;
+  created_at: string;
+  updated_at: string;
+  creator?: Profile;
+  participants?: ChallengeParticipant[];
+  challenge_workouts?: ChallengeWorkout[];
+};
+
+export type ChallengeParticipant = {
+  id: string;
+  challenge_id: string;
+  user_id: string;
+  status: string;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile;
+};
+
+export type ChallengeWorkout = {
+  id: string;
+  challenge_id: string;
+  workout_id: string;
+  user_id: string;
+  contribution_value: number;
+  created_at: string;
+  workout?: Workout;
 };

@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Home, PlusCircle, User } from 'lucide-react';
+import { Home, PlusCircle, User, Trophy } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const BottomNavigation = () => {
@@ -12,6 +13,11 @@ const BottomNavigation = () => {
         <Link to="/" className={`bottom-nav-item ${path === '/' ? 'active' : ''}`}>
           <Home size={24} />
           <span className="text-xs mt-1">Home</span>
+        </Link>
+        
+        <Link to="/challenges" className={`bottom-nav-item ${path.includes('/challenges') ? 'active' : ''}`}>
+          <Trophy size={24} />
+          <span className="text-xs mt-1">Challenges</span>
         </Link>
         
         <div className="bottom-nav-add-wrapper">
