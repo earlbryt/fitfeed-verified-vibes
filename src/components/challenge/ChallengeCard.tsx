@@ -14,7 +14,7 @@ interface ChallengeCardProps {
 }
 
 const ChallengeCard: React.FC<ChallengeCardProps> = ({ challenge, variant = 'active' }) => {
-  // Calculate progress percentage
+  // Calculate progress percentage using the updated type
   const progressPercentage = challenge.participant?.progress 
     ? Math.min(100, (challenge.participant.progress / challenge.goal_value) * 100)
     : 0;

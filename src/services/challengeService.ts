@@ -56,6 +56,7 @@ export const fetchActiveChallenges = async (): Promise<Challenge[]> => {
       challenge_id,
       status,
       progress,
+      user_id,
       challenges:challenge_id(
         id, 
         title, 
@@ -84,12 +85,13 @@ export const fetchActiveChallenges = async (): Promise<Challenge[]> => {
 
   if (!data) return [];
   
-  // Map the nested data to the Challenge interface
+  // Map the nested data to the Challenge interface with participant info
   return data.map((item: any) => ({
     ...item.challenges,
     participant: {
       progress: item.progress,
-      status: item.status
+      status: item.status,
+      user_id: item.user_id
     }
   }));
 };
@@ -105,6 +107,7 @@ export const fetchCompletedChallenges = async (): Promise<Challenge[]> => {
       challenge_id,
       status,
       progress,
+      user_id,
       challenges:challenge_id(
         id, 
         title, 
@@ -133,12 +136,13 @@ export const fetchCompletedChallenges = async (): Promise<Challenge[]> => {
 
   if (!data) return [];
   
-  // Map the nested data to the Challenge interface
+  // Map the nested data to the Challenge interface with participant info
   return data.map((item: any) => ({
     ...item.challenges,
     participant: {
       progress: item.progress,
-      status: item.status
+      status: item.status,
+      user_id: item.user_id
     }
   }));
 };

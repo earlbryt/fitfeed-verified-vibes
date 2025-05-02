@@ -54,6 +54,18 @@ export type Flag = {
   created_at: string;
 };
 
+// Add participant type for the data we're returning in the services
+export type ChallengeParticipant = {
+  id: string;
+  challenge_id: string;
+  user_id: string;
+  status: string;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile;
+};
+
 export type Challenge = {
   id: string;
   title: string;
@@ -72,17 +84,12 @@ export type Challenge = {
   creator?: Profile;
   participants?: ChallengeParticipant[];
   challenge_workouts?: ChallengeWorkout[];
-};
-
-export type ChallengeParticipant = {
-  id: string;
-  challenge_id: string;
-  user_id: string;
-  status: string;
-  progress: number;
-  created_at: string;
-  updated_at: string;
-  profile?: Profile;
+  // Add the participant property that represents the current user's participation
+  participant?: {
+    progress: number;
+    status: string;
+    user_id?: string;
+  };
 };
 
 export type ChallengeWorkout = {
