@@ -9,134 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      challenge_participants: {
-        Row: {
-          challenge_id: string
-          created_at: string
-          id: string
-          progress: number
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          challenge_id: string
-          created_at?: string
-          id?: string
-          progress?: number
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          challenge_id?: string
-          created_at?: string
-          id?: string
-          progress?: number
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "challenge_participants_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "challenges"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      challenge_workouts: {
-        Row: {
-          challenge_id: string
-          contribution_value: number
-          created_at: string
-          id: string
-          user_id: string
-          workout_id: string
-        }
-        Insert: {
-          challenge_id: string
-          contribution_value: number
-          created_at?: string
-          id?: string
-          user_id: string
-          workout_id: string
-        }
-        Update: {
-          challenge_id?: string
-          contribution_value?: number
-          created_at?: string
-          id?: string
-          user_id?: string
-          workout_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "challenge_workouts_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "challenges"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "challenge_workouts_workout_id_fkey"
-            columns: ["workout_id"]
-            isOneToOne: false
-            referencedRelation: "workouts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      challenges: {
-        Row: {
-          challenge_type: string
-          created_at: string
-          creator_id: string
-          duration_days: number
-          end_date: string | null
-          goal_unit: string
-          goal_value: number
-          id: string
-          start_date: string | null
-          status: string
-          title: string
-          updated_at: string
-          winner_id: string | null
-        }
-        Insert: {
-          challenge_type: string
-          created_at?: string
-          creator_id: string
-          duration_days: number
-          end_date?: string | null
-          goal_unit: string
-          goal_value: number
-          id?: string
-          start_date?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-          winner_id?: string | null
-        }
-        Update: {
-          challenge_type?: string
-          created_at?: string
-          creator_id?: string
-          duration_days?: number
-          end_date?: string | null
-          goal_unit?: string
-          goal_value?: number
-          id?: string
-          start_date?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-          winner_id?: string | null
-        }
-        Relationships: []
-      }
       comments: {
         Row: {
           content: string
@@ -218,27 +90,6 @@ export type Database = {
           },
         ]
       }
-      follows: {
-        Row: {
-          created_at: string
-          follower_id: string
-          following_id: string
-          id: string
-        }
-        Insert: {
-          created_at?: string
-          follower_id: string
-          following_id: string
-          id?: string
-        }
-        Update: {
-          created_at?: string
-          follower_id?: string
-          following_id?: string
-          id?: string
-        }
-        Relationships: []
-      }
       likes: {
         Row: {
           created_at: string
@@ -275,37 +126,9 @@ export type Database = {
           },
         ]
       }
-      notifications: {
-        Row: {
-          content: Json
-          created_at: string
-          id: string
-          read: boolean
-          type: string
-          user_id: string
-        }
-        Insert: {
-          content: Json
-          created_at?: string
-          id?: string
-          read?: boolean
-          type: string
-          user_id: string
-        }
-        Update: {
-          content?: Json
-          created_at?: string
-          id?: string
-          read?: boolean
-          type?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_url: string | null
-          bio: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -314,7 +137,6 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
-          bio?: string | null
           created_at?: string
           full_name?: string | null
           id: string
@@ -323,7 +145,6 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
-          bio?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
