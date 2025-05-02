@@ -70,7 +70,6 @@ export type Challenge = {
   updated_at: string;
   creator?: Profile;
   participants?: ChallengeParticipant[];
-  workouts?: ChallengeWorkout[];
 };
 
 export type ChallengeParticipant = {

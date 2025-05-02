@@ -1,47 +1,43 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO, differenceInDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { 
-  Calendar, 
-  Trophy, 
-  Users, 
-  ArrowLeft,
-  Award,
-  Clock,
-  Target,
-  AlertTriangle
-} from 'lucide-react';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { ArrowLeft, Calendar, Target, Trophy, Users } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { toast } from 'sonner';
-import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Challenge, ChallengeParticipant, ChallengeWorkout } from '@/types/supabase';
+import { format, parseISO } from 'date-fns';
+import { toast } from 'sonner';
 
 const ChallengeDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const queryClient = useQueryClient();
   
-  // Get challenge details with participants
-  const { data: challengeData, isLoading, error } = useQuery({
+  const { data: challenge, isLoading, error } = useQuery({
     queryKey: ['challenge', id],
     queryFn: async () => {
-      if (!id) throw new Error('No challenge ID provided');
+      if (!id || !user) return null;
       
-      const { data: challenge, error: challengeError } = await supabase
+      // Get challenge details
+      const { data: challengeData, error: challengeError } = await supabase
         .from('challenges')
         .select(`
           *,
           creator:creator_id (
             id,
             username,
+            full_name,
+            avatar_url
+          ),
+          winner:winner_id (
+            id,
+            username,
+            full_name,
             avatar_url
           ),
           participants:challenge_participants(
@@ -50,7 +46,7 @@ const ChallengeDetails = () => {
             status,
             progress,
             profile:user_id (
-              id, 
+              id,
               username,
               full_name,
               avatar_url
@@ -59,26 +55,41 @@ const ChallengeDetails = () => {
         `)
         .eq('id', id)
         .single();
-      
+        
       if (challengeError) throw challengeError;
       
-      // Get all workouts associated with this challenge
-      const { data: workouts, error: workoutsError } = await supabase
+      // Get the user's own participation status
+      const userParticipation = challengeData.participants.find(
+        (p: any) => p.user_id === user.id
+      );
+      
+      return {
+        ...challengeData,
+        userParticipation
+      };
+    },
+    enabled: !!id && !!user
+  });
+  
+  const { data: challengeWorkouts } = useQuery({
+    queryKey: ['challenge-workouts', id],
+    queryFn: async () => {
+      if (!id) return [];
+      
+      const { data, error: workoutsError } = await supabase
         .from('challenge_workouts')
         .select(`
-          id,
-          contribution_value,
-          created_at,
+          *,
           workout:workout_id (
             id,
             type,
             duration,
             intensity,
             created_at,
-            image,
             profile:user_id (
               id,
               username,
+              full_name,
               avatar_url
             )
           )
@@ -87,291 +98,209 @@ const ChallengeDetails = () => {
         .order('created_at', { ascending: false });
         
       if (workoutsError) throw workoutsError;
-      
-      // Create a properly typed object with all challenge data including workouts
-      const typedChallenge: Challenge = {
-        ...challenge as Challenge,
-        workouts: workouts as unknown as ChallengeWorkout[],
-        creator: challenge.creator ? {
-          id: challenge.creator.id,
-          username: challenge.creator.username || '',
-          avatar_url: challenge.creator.avatar_url,
-          full_name: null,
-          bio: null,
-          created_at: '',
-          updated_at: ''
-        } : undefined,
-        participants: challenge.participants 
-          ? challenge.participants.map(p => ({
-              ...p,
-              profile: p.profile ? {
-                id: p.profile.id,
-                username: p.profile.username || '',
-                full_name: p.profile.full_name || '',
-                avatar_url: p.profile.avatar_url,
-                bio: null,
-                created_at: '',
-                updated_at: ''
-              } : undefined
-            }))
-          : []
-      };
-      
-      return typedChallenge;
+      return data;
     },
     enabled: !!id
   });
   
-  // Determine user's role in the challenge
-  const userIsParticipant = !!challengeData?.participants?.find(
-    p => p.user_id === user?.id && p.status === 'accepted'
-  );
-  
-  const userIsCreator = challengeData?.creator_id === user?.id;
-  
-  // Sort participants by progress
-  const sortedParticipants = challengeData?.participants
-    ?.filter(p => p.status === 'accepted')
-    .sort((a, b) => b.progress - a.progress) || [];
-  
-  // Format functions
-  const formatDate = (date: string | null) => {
-    if (!date) return 'Not set';
-    return format(parseISO(date), 'MMMM d, yyyy');
-  };
-  
-  // Calculate days remaining
-  const getDaysRemaining = () => {
-    if (!challengeData?.end_date) return 'No end date set';
-    const now = new Date();
-    const endDate = parseISO(challengeData.end_date);
-    const days = differenceInDays(endDate, now);
-    return days > 0 ? `${days} days remaining` : 'Challenge ended';
-  };
+  const responseInviteMutation = useMutation({
+    mutationFn: async ({ 
+      status 
+    }: { 
+      status: 'accepted' | 'declined';
+    }) => {
+      if (!challenge?.userParticipation) return;
+      
+      const { error } = await supabase
+        .from('challenge_participants')
+        .update({ status })
+        .eq('id', challenge.userParticipation.id);
+        
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      const status = variables.status;
+      queryClient.invalidateQueries({ queryKey: ['challenge', id] });
+      queryClient.invalidateQueries({ queryKey: ['challenges'] });
+      toast.success(`Challenge ${status === 'accepted' ? 'accepted' : 'declined'}`);
+    },
+    onError: (error) => {
+      toast.error('Failed to respond to invitation', { 
+        description: error.message
+      });
+    }
+  });
   
   if (isLoading) {
     return (
-      <div className="p-4">
-        <div className="animate-pulse">
-          <div className="h-8 w-3/4 bg-gray-200 rounded mb-4"></div>
-          <div className="h-64 w-full bg-gray-200 rounded mb-4"></div>
-          <div className="h-20 w-full bg-gray-200 rounded"></div>
-        </div>
+      <div className="p-4 space-y-4">
+        <div className="animate-pulse bg-gray-200 h-8 w-3/4 mb-4 rounded"></div>
+        <div className="animate-pulse bg-gray-200 h-24 rounded"></div>
+        <div className="animate-pulse bg-gray-200 h-40 rounded"></div>
       </div>
     );
   }
   
-  if (error || !challengeData) {
+  if (error || !challenge) {
     return (
-      <div className="flex flex-col items-center justify-center p-6">
-        <AlertTriangle className="text-red-500 h-12 w-12 mb-4" />
-        <h1 className="text-xl font-bold text-center">
-          Error loading challenge
-        </h1>
-        <p className="text-gray-500 text-center mt-2">
-          Could not load the challenge details
-        </p>
-        <Button
-          onClick={() => navigate('/challenges')}
-          variant="outline"
-          className="mt-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Challenges
-        </Button>
+      <div className="p-4 text-center">
+        <p className="text-red-500 mb-4">Failed to load challenge details</p>
+        <Button onClick={() => navigate('/challenges')}>Go Back</Button>
       </div>
     );
   }
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Not set';
+    return format(parseISO(dateString), 'MMM d, yyyy');
+  };
+  
+  const getStatusBadge = () => {
+    if (challenge.status === 'pending') {
+      return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">Pending</Badge>;
+    } else if (challenge.status === 'active') {
+      return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">Active</Badge>;
+    } else {
+      return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">Completed</Badge>;
+    }
+  };
+  
+  const sortedParticipants = [...challenge.participants]
+    .filter((p: any) => p.status === 'accepted')
+    .sort((a: any, b: any) => b.progress - a.progress);
+  
   return (
     <div className="pb-16">
-      <div className="flex items-center bg-white p-4 border-b">
-        <Button
-          variant="ghost"
+      <div className="flex items-center p-4 border-b">
+        <Button 
+          variant="ghost" 
           size="icon"
           onClick={() => navigate('/challenges')}
         >
           <ArrowLeft />
         </Button>
-        <h1 className="text-xl font-bold ml-2">Challenge Details</h1>
+        <h1 className="text-xl font-bold mx-auto pr-10">Challenge Details</h1>
       </div>
-      
-      <div className="p-4">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold mb-2">{challengeData.title}</h2>
-          
-          <div className="flex flex-wrap gap-2 mb-3">
-            <Badge variant="outline" className="bg-gray-100 text-gray-800">
-              {challengeData.challenge_type === 'one-on-one' ? 'One-on-One' : 'Group Challenge'}
-            </Badge>
-            <Badge variant={challengeData.status === 'active' ? 'default' : 'secondary'}>
-              {challengeData.status?.charAt(0).toUpperCase() + challengeData.status?.slice(1)}
-            </Badge>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="flex items-center text-gray-600">
-              <Target className="h-4 w-4 mr-1" />
-              <span>
-                Goal: {challengeData.goal_value} {challengeData.goal_unit}
-              </span>
-            </div>
-            
-            <div className="flex items-center text-gray-600">
-              <Clock className="h-4 w-4 mr-1" />
-              <span>
-                {challengeData.duration_days} days
-              </span>
-            </div>
-            
-            <div className="flex items-center text-gray-600">
-              <Calendar className="h-4 w-4 mr-1" />
-              <span>
-                Start: {formatDate(challengeData.start_date)}
-              </span>
-            </div>
-            
-            <div className="flex items-center text-gray-600">
-              <Calendar className="h-4 w-4 mr-1" />
-              <span>
-                {getDaysRemaining()}
-              </span>
-            </div>
-          </div>
-          
-          {challengeData.status === 'completed' && challengeData.winner_id && (
-            <div className="border rounded-lg p-4 mb-4 bg-amber-50">
-              <div className="flex items-center">
-                <Trophy className="h-6 w-6 text-amber-500 mr-2" />
-                <h3 className="font-bold text-lg">Winner!</h3>
-              </div>
-              
-              <div className="flex items-center mt-3">
-                <Avatar className="h-10 w-10 mr-3">
-                  <AvatarImage src={(sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profile?.avatar_url) || ''} />
-                  <AvatarFallback>
-                    {(sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profile?.username?.charAt(0) || 'W').toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-medium">
-                    {sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.profile?.username || 'User'}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Completed with {sortedParticipants.find(p => p.user_id === challengeData.winner_id)?.progress || 0} {challengeData.goal_unit}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          <Card className="mb-4">
-            <div className="p-4 border-b">
-              <h3 className="font-medium flex items-center">
-                <Users className="h-4 w-4 mr-1" />
-                Participants Progress
-              </h3>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              {sortedParticipants.length > 0 ? (
-                sortedParticipants.map((participant) => (
-                  <div key={participant.id} className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <Avatar className="h-6 w-6 mr-2">
-                          <AvatarImage src={participant.profile?.avatar_url || ''} />
-                          <AvatarFallback>
-                            {(participant.profile?.username?.charAt(0) || 'U').toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-medium">
-                          {participant.profile?.username || 'User'}
-                        </span>
-                      </div>
-                      <span className="text-sm">
-                        {participant.progress} / {challengeData.goal_value}
-                      </span>
-                    </div>
-                    <Progress 
-                      value={(participant.progress / challengeData.goal_value) * 100} 
-                      className="h-2"
-                    />
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-3 text-gray-500">
-                  No participants yet
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Challenge creator info */}
-          <div className="flex items-center mb-6">
-            <div className="text-sm text-gray-500">Created by</div>
-            <Avatar className="h-6 w-6 ml-2">
-              <AvatarImage src={challengeData.creator?.avatar_url || ''} />
-              <AvatarFallback>
-                {(challengeData.creator?.username?.charAt(0) || 'C').toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="text-sm ml-1">
-              {challengeData.creator?.username || 'Unknown'}
+      <div className="p-4 space-y-6">
+        <div className="flex justify-between items-start">
+          <h2 className="text-xl font-bold">{challenge.title}</h2>
+          {getStatusBadge()}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="border rounded-md p-3 flex flex-col items-center">
+            <Target size={20} className="text-gray-600 mb-1" />
+            <div className="text-sm text-gray-600">Goal</div>
+            <div className="font-medium">
+              {challenge.goal_value} {challenge.goal_unit}
             </div>
           </div>
           
-          {userIsParticipant && challengeData.status === 'active' && (
-            <div className="mt-4">
+          <div className="border rounded-md p-3 flex flex-col items-center">
+            <Calendar size={20} className="text-gray-600 mb-1" />
+            <div className="text-sm text-gray-600">Duration</div>
+            <div className="font-medium">
+              {challenge.duration_days} days
+            </div>
+          </div>
+          
+          <div className="border rounded-md p-3 flex flex-col items-center">
+            <Users size={20} className="text-gray-600 mb-1" />
+            <div className="text-sm text-gray-600">Type</div>
+            <div className="font-medium capitalize">
+              {challenge.challenge_type.replace('-', ' ')}
+            </div>
+          </div>
+          
+          <div className="border rounded-md p-3 flex flex-col items-center">
+            <Trophy size={20} className="text-gray-600 mb-1" />
+            <div className="text-sm text-gray-600">Created by</div>
+            <div className="font-medium truncate w-full text-center">
+              {challenge.creator?.username || 'User'}
+            </div>
+          </div>
+        </div>
+        
+        {challenge.userParticipation?.status === 'invited' && (
+          <div className="border rounded-md p-4 bg-yellow-50">
+            <p className="text-center mb-3">You've been invited to join this challenge!</p>
+            <div className="flex justify-center space-x-2">
               <Button 
-                variant="destructive" 
-                className="w-full"
-                onClick={() => setShowLeaveConfirm(true)}
+                onClick={() => responseInviteMutation.mutate({ status: 'accepted' })}
+                className="bg-green-500 hover:bg-green-600"
               >
-                Leave Challenge
+                Accept
               </Button>
-              
-              {showLeaveConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                  <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-                    <h3 className="font-bold text-lg mb-2">Leave Challenge?</h3>
-                    <p className="text-gray-600 mb-4">
-                      Are you sure you want to leave this challenge? Your progress will be lost.
-                    </p>
-                    <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => setShowLeaveConfirm(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        className="flex-1"
-                        onClick={() => {
-                          // Handle leave challenge logic
-                          toast.error('Feature not implemented yet');
-                          setShowLeaveConfirm(false);
-                        }}
-                      >
-                        Leave
-                      </Button>
+              <Button 
+                variant="outline"
+                onClick={() => responseInviteMutation.mutate({ status: 'declined' })}
+              >
+                Decline
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {/* Dates */}
+        <div className="flex justify-between text-sm text-gray-600">
+          <div>
+            <span className="font-medium">Started:</span> {formatDate(challenge.start_date)}
+          </div>
+          <div>
+            <span className="font-medium">Ends:</span> {formatDate(challenge.end_date)}
+          </div>
+        </div>
+        
+        {/* Participants progress */}
+        <div className="space-y-1">
+          <h3 className="font-medium mb-2">Participants Progress</h3>
+          
+          {sortedParticipants.length > 0 ? (
+            <div className="space-y-4">
+              {sortedParticipants.map((participant: any, index: number) => (
+                <div key={participant.id} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {index === 0 && challenge.status === 'completed' && (
+                        <Trophy size={16} className="text-amber-500" />
+                      )}
+                      <Avatar className="w-6 h-6">
+                        <AvatarImage src={participant.profile?.avatar_url || ''} />
+                        <AvatarFallback className="text-xs">
+                          {participant.profile?.username?.substring(0, 2).toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="text-sm font-medium">
+                        {participant.profile?.username || 'User'} 
+                        {participant.user_id === user?.id && ' (You)'}
+                      </div>
+                    </div>
+                    <div className="text-sm font-medium">
+                      {participant.progress} / {challenge.goal_value}
                     </div>
                   </div>
+                  <Progress 
+                    value={challenge.goal_value > 0 ? (participant.progress / challenge.goal_value) * 100 : 0} 
+                    className="h-2"
+                  />
                 </div>
-              )}
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-2 text-gray-500 text-sm">
+              No participants yet
             </div>
           )}
         </div>
         
-        {/* Recent activities section */}
+        {/* Recent contributions */}
         <div>
-          <h3 className="font-bold text-lg mb-3">Recent Activities</h3>
+          <h3 className="font-medium mb-3">Recent Contributions</h3>
           
-          {challengeData.workouts && challengeData.workouts.length > 0 ? (
+          {challengeWorkouts && challengeWorkouts.length > 0 ? (
             <div className="space-y-3">
-              {challengeData.workouts.slice(0, 5).map((contri) => (
+              {challengeWorkouts.slice(0, 5).map((contri: any) => (
                 <div key={contri.id} className="border rounded-md p-3 flex justify-between">
                   <div className="flex items-center">
                     <Avatar className="w-6 h-6 mr-2">
@@ -390,23 +319,42 @@ const ChallengeDetails = () => {
                     </div>
                   </div>
                   <div className="font-medium">
-                    +{contri.contribution_value} {challengeData.goal_unit}
+                    +{contri.contribution_value} {challenge.goal_unit}
                   </div>
                 </div>
               ))}
               
-              {challengeData.workouts.length > 5 && (
+              {challengeWorkouts.length > 5 && (
                 <div className="text-center text-sm text-gray-500">
-                  + {challengeData.workouts.length - 5} more contributions
+                  + {challengeWorkouts.length - 5} more contributions
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 border rounded-lg">
-              No activities yet
+            <div className="text-center py-4 text-gray-500 text-sm">
+              No workout contributions yet
             </div>
           )}
         </div>
+        
+        {/* Winner */}
+        {challenge.status === 'completed' && challenge.winner_id && (
+          <div className="border-t border-b py-4 my-4">
+            <div className="text-center">
+              <Trophy size={32} className="text-amber-500 mx-auto mb-2" />
+              <h3 className="font-bold">Winner</h3>
+              <div className="flex justify-center items-center mt-2">
+                <Avatar className="mr-2">
+                  <AvatarImage src={challenge.winner?.avatar_url || ''} />
+                  <AvatarFallback>
+                    {challenge.winner?.username?.substring(0, 2).toUpperCase() || 'W'}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-lg font-medium">{challenge.winner?.username || 'User'}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,15 +40,13 @@ const formSchema = z.object({
   challenge_ids: z.array(z.string()).optional(),
 });
 
-type FormValues = z.infer<typeof formSchema>;
-
 const WorkoutForm = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  const form = useForm<FormValues>({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       type: '',
@@ -97,7 +96,7 @@ const WorkoutForm = () => {
     }
   };
   
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) {
       toast.error('You must be logged in to post a workout');
       return;
@@ -182,14 +181,14 @@ const WorkoutForm = () => {
           // Calculate contribution value based on the workout type and challenge goal unit
           let contributionValue = 0;
           
-          if (challengeData.challenges?.goal_unit === 'minutes') {
+          if (challengeData.challenges.goal_unit === 'minutes') {
             contributionValue = parseInt(values.duration);
-          } else if (challengeData.challenges?.goal_unit === 'hours') {
+          } else if (challengeData.challenges.goal_unit === 'hours') {
             contributionValue = parseInt(values.duration) / 60;
-          } else if (challengeData.challenges?.goal_unit === 'workouts') {
+          } else if (challengeData.challenges.goal_unit === 'workouts') {
             contributionValue = 1;
-          } else if ((challengeData.challenges?.goal_unit === 'miles' || 
-                     challengeData.challenges?.goal_unit === 'kilometers') && 
+          } else if ((challengeData.challenges.goal_unit === 'miles' || 
+                     challengeData.challenges.goal_unit === 'kilometers') && 
                      values.type === 'running') {
             // Estimate based on pace (rough estimate: 10min/mile for medium intensity)
             const minutesPerUnit = values.intensity === 'high' ? 8 : 
@@ -197,7 +196,7 @@ const WorkoutForm = () => {
             contributionValue = parseInt(values.duration) / minutesPerUnit;
             
             // Convert to kilometers if needed
-            if (challengeData.challenges?.goal_unit === 'kilometers' && contributionValue > 0) {
+            if (challengeData.challenges.goal_unit === 'kilometers' && contributionValue > 0) {
               contributionValue = contributionValue * 1.60934;
             }
           }
