@@ -54,7 +54,7 @@ export type Flag = {
   created_at: string;
 };
 
-// Add participant type for the data we're returning in the services
+// Challenge-related types
 export type ChallengeParticipant = {
   id: string;
   challenge_id: string;
@@ -100,4 +100,26 @@ export type ChallengeWorkout = {
   contribution_value: number;
   created_at: string;
   workout?: Workout;
+};
+
+export type FitnessTip = {
+  id: string;
+  user_id: string;
+  content: string;
+  likes_count: number;
+  comments_count: number;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile;
+  user_has_liked?: boolean;
+};
+
+export type WorkoutReminder = {
+  id: string;
+  user_id: string;
+  time: string;
+  days: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 };

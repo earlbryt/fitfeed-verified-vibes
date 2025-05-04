@@ -12,6 +12,11 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Challenges from "./pages/Challenges";
 import CreateChallenge from "./pages/CreateChallenge";
+import ChallengeDetails from "./pages/ChallengeDetails";
+import LogWorkout from "./pages/LogWorkout";
+import TipsAndTricks from "./pages/TipsAndTricks";
+import WorkoutReminders from "./pages/WorkoutReminders";
+import Leaderboard from "./pages/Leaderboard";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import React from "react";
@@ -39,11 +44,15 @@ const App = () => {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
                 <Route path="/add-workout" element={<ProtectedRoute><AddWorkout /></ProtectedRoute>} />
+                <Route path="/log-workout" element={<ProtectedRoute><LogWorkout /></ProtectedRoute>} />
                 <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><Challenges /></ProtectedRoute>} />
                 <Route path="/challenges/create" element={<ProtectedRoute><CreateChallenge /></ProtectedRoute>} />
-                <Route path="/challenges/:id" element={<ProtectedRoute><div>Challenge Details Page</div></ProtectedRoute>} />
+                <Route path="/challenges/:id" element={<ProtectedRoute><ChallengeDetails /></ProtectedRoute>} />
+                <Route path="/tips" element={<ProtectedRoute><TipsAndTricks /></ProtectedRoute>} />
+                <Route path="/reminders" element={<ProtectedRoute><WorkoutReminders /></ProtectedRoute>} />
+                <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AuthProvider>

@@ -1,143 +1,204 @@
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Header from '@/components/layout/Header';
 import BottomNavigation from '@/components/layout/BottomNavigation';
 import WorkoutCard from '@/components/workout/WorkoutCard';
-import { supabase } from '@/integrations/supabase/client';
+import QuickActions from '@/components/home/QuickActions';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
+import { format, subDays } from 'date-fns';
+import { Calendar, Trophy, TrendingUp } from 'lucide-react';
 import { Workout } from '@/types/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
+
+// Mock data for UI presentation
+const recentWorkouts: Workout[] = [
+  {
+    id: '1',
+    user_id: '123',
+    type: 'running',
+    duration: 45,
+    intensity: 'medium',
+    image: null,
+    caption: 'Morning run in the park. Great weather today!',
+    verified: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    hidden: false,
+    profile: {
+      id: '123',
+      username: 'jogger123',
+      full_name: 'John Smith',
+      avatar_url: null,
+      bio: 'Running enthusiast',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    likes_count: 12,
+    comments_count: 3,
+    flags_count: 0,
+    user_has_liked: true,
+  },
+  {
+    id: '2',
+    user_id: '456',
+    type: 'yoga',
+    duration: 30,
+    intensity: 'low',
+    image: 'https://placehold.co/400x300',
+    caption: 'Relaxing yoga session after work.',
+    verified: true,
+    created_at: subDays(new Date(), 1).toISOString(),
+    updated_at: subDays(new Date(), 1).toISOString(),
+    hidden: false,
+    profile: {
+      id: '456',
+      username: 'yoga_girl',
+      full_name: 'Emily Jones',
+      avatar_url: null,
+      bio: 'Yoga instructor',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    likes_count: 18,
+    comments_count: 5,
+    flags_count: 0,
+    user_has_liked: false,
+  },
+];
+
+const activeChallenge = {
+  id: '1',
+  title: '30-Day Run Challenge',
+  goalValue: 50,
+  goalUnit: 'miles',
+  startDate: format(subDays(new Date(), 5), 'MMM d'),
+  endDate: format(subDays(new Date(), 5 - 30), 'MMM d'),
+  daysLeft: 25,
+  progress: 12,
+  participants: 8,
+};
 
 const Home = () => {
-  const { user } = useAuth();
-  const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (user) {
-      fetchWorkouts();
-    }
-  }, [user]);
-
-  const fetchWorkouts = async () => {
-    try {
-      setLoading(true);
-      
-      // First, fetch the basic workout data with counts
-      const { data: workoutsData, error: workoutsError } = await supabase
-        .from('workouts')
-        .select(`
-          *,
-          profile:profiles(*),
-          likes_count:likes(count),
-          comments_count:comments(count),
-          flags_count:flags(count)
-        `)
-        .eq('hidden', false)
-        .order('created_at', { ascending: false });
-
-      if (workoutsError) throw workoutsError;
-      
-      if (!workoutsData) {
-        setWorkouts([]);
-        return;
-      }
-
-      // If user is logged in, fetch user-specific data (likes, flags)
-      if (user) {
-        // Process each workout to check if user has liked or flagged it
-        const enhancedWorkouts = await Promise.all(workoutsData.map(async (workout) => {
-          // Check if user has liked this workout
-          const { data: likeData, error: likeError } = await supabase
-            .from('likes')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('workout_id', workout.id)
-            .maybeSingle();
-
-          if (likeError) console.error('Error checking like status:', likeError);
-          
-          // Check if user has flagged this workout
-          const { data: flagData, error: flagError } = await supabase
-            .from('flags')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('workout_id', workout.id)
-            .maybeSingle();
-
-          if (flagError) console.error('Error checking flag status:', flagError);
-
-          // Convert count arrays to numbers and add user-specific data
-          return {
-            ...workout,
-            likes_count: workout.likes_count && workout.likes_count[0] ? Number(workout.likes_count[0].count) : 0,
-            comments_count: workout.comments_count && workout.comments_count[0] ? Number(workout.comments_count[0].count) : 0,
-            flags_count: workout.flags_count && workout.flags_count[0] ? Number(workout.flags_count[0].count) : 0,
-            user_has_liked: !!likeData,
-            user_has_flagged: !!flagData
-          } as Workout;
-        }));
-
-        setWorkouts(enhancedWorkouts);
-      } else {
-        // If no user, just convert the count arrays to numbers
-        const formattedWorkouts = workoutsData.map(workout => ({
-          ...workout,
-          likes_count: workout.likes_count && workout.likes_count[0] ? Number(workout.likes_count[0].count) : 0,
-          comments_count: workout.comments_count && workout.comments_count[0] ? Number(workout.comments_count[0].count) : 0,
-          flags_count: workout.flags_count && workout.flags_count[0] ? Number(workout.flags_count[0].count) : 0,
-        })) as Workout[];
-        
-        setWorkouts(formattedWorkouts);
-      }
-    } catch (error: any) {
-      console.error('Error fetching workouts:', error);
-      toast.error('Failed to load workouts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="pb-20 min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background pb-20">
       <Header />
-      <div className="max-w-md mx-auto pt-2 px-4">
-        {loading ? (
-          Array(3)
-            .fill(0)
-            .map((_, i) => (
-              <div key={i} className="mb-6">
-                <div className="flex items-center space-x-2 mb-3">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <div>
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-2 w-16 mt-1" />
-                  </div>
-                </div>
-                <Skeleton className="h-64 w-full rounded-md" />
-                <div className="mt-3 space-y-2">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-3 w-full" />
-                </div>
+      <div className="p-4">
+        {/* Welcome Card */}
+        <Card className="mb-6 bg-primary/5 border-primary/20">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold mb-1">Hi, Fitness Lover!</h1>
+                <p className="text-muted-foreground">
+                  {format(new Date(), 'EEEE, MMMM d')}
+                </p>
               </div>
-            ))
-        ) : workouts.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-lg font-medium text-gray-600">No workouts yet!</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Start by adding your first workout.
-            </p>
+              <Avatar className="h-12 w-12">
+                <AvatarFallback>FL</AvatarFallback>
+              </Avatar>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-xs flex items-center">
+                  <Calendar className="h-3 w-3 mr-1" /> This Week
+                </span>
+                <span className="text-2xl font-bold">4</span>
+                <span className="text-sm">Workouts</span>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-xs flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" /> Current
+                </span>
+                <span className="text-2xl font-bold">8</span>
+                <span className="text-sm">Day Streak</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Active Challenge */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-semibold text-lg">Active Challenge</h2>
+            <Link to="/challenges" className="text-sm text-primary">
+              View all
+            </Link>
           </div>
-        ) : (
-          workouts.map((workout) => (
-            <WorkoutCard 
-              key={workout.id} 
-              workout={workout} 
-              onWorkoutUpdate={fetchWorkouts} 
-            />
-          ))
-        )}
+          
+          <Card className="border-primary/20">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center">
+                    <Trophy className="h-5 w-5 mr-2 text-amber-500" />
+                    {activeChallenge.title}
+                  </CardTitle>
+                  <CardDescription>
+                    {activeChallenge.startDate} - {activeChallenge.endDate}
+                  </CardDescription>
+                </div>
+                <Badge>
+                  {activeChallenge.daysLeft} days left
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-2">
+              <div className="flex justify-between mb-1">
+                <span className="text-sm">
+                  Goal: {activeChallenge.goalValue} {activeChallenge.goalUnit}
+                </span>
+                <span className="text-sm font-medium">
+                  {activeChallenge.progress}/{activeChallenge.goalValue}
+                </span>
+              </div>
+              <Progress value={(activeChallenge.progress / activeChallenge.goalValue) * 100} className="h-2" />
+              <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+                <span>{activeChallenge.participants} participants</span>
+                <span className="text-primary">
+                  Rank #3
+                </span>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button asChild className="w-full">
+                <Link to={`/challenges/${activeChallenge.id}`}>
+                  View Challenge
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <QuickActions />
+
+        {/* Recent Activity */}
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-semibold text-lg">Recent Activity</h2>
+          </div>
+          
+          {recentWorkouts.map((workout) => (
+            <div key={workout.id} className="mb-4">
+              <WorkoutCard workout={workout} showActions />
+            </div>
+          ))}
+        </div>
       </div>
       <BottomNavigation />
     </div>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, PlusCircle, User, Trophy } from 'lucide-react';
+import { Home, PlusCircle, User, Trophy, BarChart, Heart } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const BottomNavigation = () => {
@@ -21,10 +21,15 @@ const BottomNavigation = () => {
         </Link>
         
         <div className="bottom-nav-add-wrapper">
-          <Link to="/add-workout" className={`bottom-nav-add ${path === '/add-workout' ? 'active' : ''}`}>
+          <Link to="/log-workout" className={`bottom-nav-add ${path === '/log-workout' ? 'active' : ''}`}>
             <PlusCircle size={32} />
           </Link>
         </div>
+        
+        <Link to="/leaderboard" className={`bottom-nav-item ${path === '/leaderboard' ? 'active' : ''}`}>
+          <BarChart size={24} />
+          <span className="text-xs mt-1">Leaderboard</span>
+        </Link>
         
         <Link to="/profile" className={`bottom-nav-item ${path === '/profile' ? 'active' : ''}`}>
           <User size={24} />
